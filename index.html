@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bridge Thrift</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body, #root {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useCallback, useMemo } = React;
+    const { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.Recharts;
+
+    // SVG Icon Components
+    const Icons = {
+      Menu: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>,
+      X: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+      ChevronDown: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>,
+      Plus: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+      Edit2: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3"/></svg>,
+      Trash2: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
+      Download: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+      Calendar: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>,
+      Search: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+      Filter: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>,
+      Home: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+      Gift: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 7V5c0-1.1.9-2 2-2h0c1.1 0 2 .9 2 2v2M12 7V5c0-1.1-.9-2-2-2h0c-1.1 0-2 .9-2 2v2"/></svg>,
+      Truck: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M1 18v2a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-2"/><circle cx="8" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+      BarChart3: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="3" x2="12" y2="21"/><line x1="18" y1="15" x2="18" y2="21"/><line x1="6" y1="9" x2="6" y2="21"/></svg>,
+      Users: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+      Settings: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v6m0 6v6M4.22 4.22l4.24 4.24m3.08 3.08l4.24 4.24M1 12h6m6 0h6m-17.78 7.78l4.24-4.24m3.08-3.08l4.24-4.24"/></svg>,
+      ShoppingCart: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>,
+      MapPin: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+      User: (props) => <svg xmlns="http://www.w3.org/2000/svg" width={props.size || 24} height={props.size || 24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>,
+    };
+
+    // ============================================================================
+    // DATA INITIALIZATION & STORAGE
+    // ============================================================================
+
+    const LOCATIONS = [
+      { id: 1, name: 'Clairemont', phone: '858-352-6374', address: '4220 Balboa Ave', city: 'San Diego', state: 'CA' },
+      { id: 2, name: 'Glassell Park', phone: '323-474-7890', address: '3516 N Eagle Rock Blvd', city: 'Los Angeles', state: 'CA' },
+      { id: 3, name: 'Highland Park', phone: '323-474-6424', address: '5817 Figueroa St', city: 'Los Angeles', state: 'CA' },
+      { id: 4, name: 'Spring Valley', phone: '619-470-1234', address: '9617 Campo Rd', city: 'Spring Valley', state: 'CA' },
+      { id: 5, name: 'Pacific Beach', phone: '858-352-6087', address: '1772 Garnet Ave', city: 'San Diego', state: 'CA' }
+    ];
+
+    const CATEGORIES = [
+      { id: 1, name: 'Clothing', value: 5, modules: ['Processing', 'Retail', 'Donations', 'Wholesale'] },
+      { id: 2, name: 'Shoes', value: 4, modules: ['Processing', 'Retail', 'Donations', 'Wholesale'] },
+      { id: 3, name: 'Jewelry', value: 8, modules: ['Retail', 'Donations'] },
+      { id: 4, name: 'Accessories', value: 3, modules: ['Retail', 'Donations'] },
+      { id: 5, name: 'Linens', value: 2, modules: ['Processing', 'Retail'] },
+      { id: 6, name: 'Household', value: 6, modules: ['Retail', 'Donations'] },
+      { id: 7, name: 'Electronics', value: 15, modules: ['Retail', 'Donations'] },
+      { id: 8, name: 'Media', value: 2, modules: ['Retail'] },
+      { id: 9, name: 'Furniture', value: 20, modules: ['Retail', 'Donations'] },
+      { id: 10, name: 'Seasonal', value: 4, modules: ['Retail', 'Donations'] },
+      { id: 11, name: 'Paper Bag', value: 0.50, modules: ['Donations'] },
+      { id: 12, name: 'Outlet', value: 1, modules: ['Retail'] },
+      { id: 13, name: 'Cash Adjustments', value: 0, modules: ['Retail'] }
+    ];
+
+    const PARTNERS = [
+      'Hope for San Diego', 'Alpha Project', 'Barabbas Road Church', 'Bridge of Hope',
+      'Second Chance', 'Wounded Warrior Project', 'We See You San Diego',
+      'Mission Valley Christian Fellowship', 'St Vincent De Paul', 'Community Outreach',
+      'Local Food Bank', 'Youth Services', 'Homeless Connect', 'Crisis Response Team'
+    ];
+
+    const initializeData = () => {
+      const now = new Date();
+      const donations = [];
+      const retailSummaries = [];
+      const processingSummaries = [];
+      const pickupsSummaries = [];
+      const truckStops = [];
+      const events = [];
+      const benevolenceGifts = [];
+
+      // Generate 30 days of sample data
+      for (let d = 0; d < 30; d++) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - d);
+        const dateStr = date.toISOString().split('T')[0];
+
+        LOCATIONS.forEach((location, locIdx) => {
+          // Donations
+          donations.push({
+            id: `DON-${dateStr}-${locIdx}`,
+            date: dateStr,
+            locationId: location.id,
+            donorFirstName: ['John', 'Jane', 'Michael', 'Sarah'][Math.floor(Math.random() * 4)],
+            donorLastName: ['Smith', 'Johnson', 'Williams', 'Brown'][Math.floor(Math.random() * 4)],
+            donorEmail: `donor${locIdx}@example.com`,
+            donorPhone: '619-555-0100',
+            partner: PARTNERS[Math.floor(Math.random() * PARTNERS.length)],
+            status: ['Scheduled', 'Received', 'Closed'][Math.floor(Math.random() * 3)],
+            totalItems: Math.floor(Math.random() * 200) + 20,
+            suggestedValue: Math.floor(Math.random() * 2000) + 200,
+            totalValue: Math.floor(Math.random() * 1500) + 150
+          });
+
+          // Retail Summaries
+          const grossSales = Math.floor(Math.random() * 6000) + 1500;
+          retailSummaries.push({
+            id: `RET-${dateStr}-${locIdx}`,
+            date: dateStr,
+            locationId: location.id,
+            grossSales,
+            netSales: Math.floor(grossSales * 0.92),
+            salesTax: Math.floor(grossSales * 0.08),
+            taxableSales: Math.floor(grossSales * 0.7),
+            nonTaxableSales: Math.floor(grossSales * 0.3),
+            unreconciled: Math.floor(Math.random() * 100),
+            laborHours: Math.floor(Math.random() * 8) + 4,
+            hoursOpen: 8,
+            ringsAtRegister: Math.floor(Math.random() * 100) + 20,
+            donations: Math.floor(Math.random() * 500),
+            piecesStocked: Math.floor(Math.random() * 300) + 50,
+            depositAmount: Math.floor(grossSales * 0.8),
+            creditCardDeposits: [
+              Math.floor(grossSales * 0.3),
+              Math.floor(grossSales * 0.3),
+              Math.floor(grossSales * 0.2),
+              0
+            ],
+            payoutAmount: Math.floor(Math.random() * 200),
+            notes: '',
+            categories: CATEGORIES.reduce((acc, cat) => {
+              acc[cat.name] = {
+                netSales: Math.floor(Math.random() * 500) + 50,
+                quantity: Math.floor(Math.random() * 50) + 5,
+                pulls: Math.floor(Math.random() * 100) + 10
+              };
+              return acc;
+            }, {}),
+            paymentMethods: {
+              cash: Math.floor(grossSales * 0.4),
+              creditCard: Math.floor(grossSales * 0.5),
+              giftCard: Math.floor(grossSales * 0.1)
+            }
+          });
+
+          // Processing Summaries
+          processingSummaries.push({
+            id: `PROC-${dateStr}-${locIdx}`,
+            date: dateStr,
+            locationId: location.id,
+            createdBy: 'Staff',
+            laborHours: Math.floor(Math.random() * 6) + 2,
+            unitsProcessed: Math.floor(Math.random() * 400) + 100
+          });
+
+          // Pickups
+          pickupsSummaries.push({
+            id: `PICK-${dateStr}-${locIdx}`,
+            date: dateStr,
+            locationId: location.id,
+            donor: ['John Donor', 'Jane Giver', 'Anonymous'][Math.floor(Math.random() * 3)],
+            items: Math.floor(Math.random() * 150) + 20
+          });
+
+          // Truck Stops
+          if (Math.random() > 0.7) {
+            truckStops.push({
+              id: `TRUCK-${dateStr}-${locIdx}`,
+              date: dateStr,
+              locationId: location.id,
+              driver: ['Driver A', 'Driver B', 'Driver C'][Math.floor(Math.random() * 3)],
+              notes: 'Regular pickup'
+            });
+          }
+
+          // Benevolence Gifts
+          if (Math.random() > 0.8) {
+            benevolenceGifts.push({
+              id: `BEN-${dateStr}-${locIdx}`,
+              date: dateStr,
+              recipient: 'Community Member',
+              amount: Math.floor(Math.random() * 500) + 50,
+              description: 'Clothing donation'
+            });
+          }
+        });
+      }
+
+      return {
+        donations,
+        retailSummaries,
+        processingSummaries,
+        pickupsSummaries,
+        truckStops,
+        events: [
+          { id: 1, date: new Date().toISOString().split('T')[0], name: 'Community Donation Drive', locationId: 1, description: 'Monthly drive' }
+        ],
+        benevolenceGifts,
+        donors: [
+          { id: 1, firstName: 'John', lastName: 'Smith', email: 'john@example.com', phone: '619-555-0100', totalDonations: 15, totalValue: 3000 },
+          { id: 2, firstName: 'Jane', lastName: 'Johnson', email: 'jane@example.com', phone: '619-555-0101', totalDonations: 8, totalValue: 1500 }
+        ],
+        users: [
+          { id: 1, name: 'Jared Stoltzfus', email: 'jared@bridgethrift.org', role: 'Admin' },
+          { id: 2, name: 'Staff Member', email: 'staff@bridgethrift.org', role: 'Staff' }
+        ],
+        callCenterSummaries: [],
+        distributionSummaries: [],
+        payrollSummaries: [],
+        wholesaleSummaries: []
+      };
+    };
+
+    // ============================================================================
+    // UTILITY FUNCTIONS
+    // ============================================================================
+
+    const formatCurrency = (value) => {
+      return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+    };
+
+    const formatDate = (dateStr) => {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    };
+
+    // CSV Export
+    const downloadCSV = (data, filename) => {
+      if (!data || data.length === 0) {
+        alert('No data to export');
+        return;
+      }
+      const headers = Object.keys(data[0]);
+      const csv = [
+        headers.join(','),
+        ...data.map(row => headers.map(header => {
+          const val = row[header];
+          if (typeof val === 'object') return JSON.stringify(val);
+          if (typeof val === 'string' && val.includes(',')) return `"${val}"`;
+          return val;
+        }).join(','))
+      ].join('\n');
+
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      window.URL.revokeObjectURL(url);
+    };
+
+    // ============================================================================
+    // GAUGE COMPONENT
+    // ============================================================================
+
+    const Gauge = ({ value, max = 100, label, color = '#4CAF50' }) => {
+      const percentage = (value / max) * 100;
+      const rotation = (percentage / 100) * 180 - 90;
+
+      return (
+        <div className="flex flex-col items-center">
+          <div className="relative w-32 h-16">
+            <svg viewBox="0 0 200 100" className="w-full h-full">
+              <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="#e0e0e0" strokeWidth="8" fill="none" />
+              <path d="M 20 100 A 80 80 0 0 1 120 20" stroke="#4CAF50" strokeWidth="8" fill="none" />
+              <path d="M 120 20 A 80 80 0 0 1 160 40" stroke="#FF9800" strokeWidth="8" fill="none" />
+              <path d="M 160 40 A 80 80 0 0 1 180 100" stroke="#f44336" strokeWidth="8" fill="none" />
+              <line
+                x1="100" y1="100" x2={100 + 70 * Math.cos((rotation * Math.PI) / 180)}
+                y1={100 + 70 * Math.sin((rotation * Math.PI) / 180)}
+                stroke="#333" strokeWidth="4" strokeLinecap="round"
+              />
+              <circle cx="100" cy="100" r="6" fill="#333" />
+              <text x="100" y="130" textAnchor="middle" fontSize="16" fontWeight="bold" fill="#333">
+                {value}
+              </text>
+            </svg>
+          </div>
+          <p className="mt-2 text-sm font-medium text-gray-700">{label}</p>
+        </div>
+      );
+    };
+
+    // ============================================================================
+    // COMPONENTS
+    // ============================================================================
+
+    const Navbar = ({ selectedLocation, locations, onLocationChange, userName }) => (
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-green-700 rounded-lg flex items-center justify-center text-white font-bold">B</div>
+            <span className="text-xl font-bold text-gray-900">Bridge Thrift</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Icons.MapPin size={18} className="text-green-700" />
+              <select
+                value={selectedLocation}
+                onChange={(e) => onLocationChange(Number(e.target.value))}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm"
+              >
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 text-gray-700">
+              <Icons.User size={18} />
+              <span className="text-sm">{userName}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    const Sidebar = ({ activeSection, onSectionChange }) => {
+      const [expanded, setExpanded] = useState({
+        dashboard: true,
+        metrics: false,
+        administration: false,
+        people: false,
+        pos: false
+      });
+
+      const toggleExpand = (section) => {
+        setExpanded(prev => ({ ...prev, [section]: !prev[section] }));
+      };
+
+      const NavItem = ({ icon: Icon, label, onClick, active, hasSubmenu, onToggle }) => (
+        <button
+          onClick={() => {
+            if (hasSubmenu) onToggle();
+            else onClick();
+          }}
+          className={`w-full flex items-center justify-between gap-3 px-4 py-2 rounded-lg transition ${
+            active ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-700 hover:bg-gray-100'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <Icon size={18} />
+            <span className="text-sm">{label}</span>
+          </div>
+          {hasSubmenu && <Icons.ChevronDown size={16} className={`transition ${expanded[label.toLowerCase().replace(/ /g, '')] ? 'rotate-180' : ''}`} />}
+        </button>
+      );
+
+      const SubNavItem = ({ label, onClick, active }) => (
+        <button
+          onClick={onClick}
+          className={`w-full text-left pl-10 pr-4 py-2 text-sm transition ${
+            active ? 'text-green-700 font-medium bg-green-50' : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          {label}
+        </button>
+      );
+
+      return (
+        <div className="w-64 bg-white border-r border-gray-200 p-4 space-y-2 h-screen overflow-y-auto">
+          <div className="mb-6 pb-6 border-b border-gray-200">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Menu</h3>
+          </div>
+
+          <div>
+            <NavItem
+              icon={Icons.Home}
+              label="Dashboard"
+              hasSubmenu
+              onToggle={() => toggleExpand('dashboard')}
+              active={activeSection === 'overview' || activeSection === 'dashboard-donations'}
+            />
+            {expanded.dashboard && (
+              <>
+                <SubNavItem label="Overview" onClick={() => onSectionChange('overview')} active={activeSection === 'overview'} />
+                <SubNavItem label="Donations" onClick={() => onSectionChange('dashboard-donations')} active={activeSection === 'dashboard-donations'} />
+                <SubNavItem label="Processing" onClick={() => onSectionChange('dashboard-processing')} active={activeSection === 'dashboard-processing'} />
+                <SubNavItem label="Retail" onClick={() => onSectionChange('dashboard-retail')} active={activeSection === 'dashboard-retail'} />
+                <SubNavItem label="Wholesale" onClick={() => onSectionChange('dashboard-wholesale')} active={activeSection === 'dashboard-wholesale'} />
+              </>
+            )}
+          </div>
+
+          <NavItem icon={Icons.Gift} label="Donations" onClick={() => onSectionChange('donations')} active={activeSection === 'donations'} />
+          <NavItem icon={Icons.Truck} label="Truck Stops" onClick={() => onSectionChange('truck_stops')} active={activeSection === 'truck_stops'} />
+          <NavItem icon={Icons.Calendar} label="Events" onClick={() => onSectionChange('events')} active={activeSection === 'events'} />
+
+          <div>
+            <NavItem
+              icon={Icons.BarChart3}
+              label="Metrics"
+              hasSubmenu
+              onToggle={() => toggleExpand('metrics')}
+              active={activeSection?.startsWith('metrics-')}
+            />
+            {expanded.metrics && (
+              <>
+                <SubNavItem label="Processing" onClick={() => onSectionChange('metrics-processing')} active={activeSection === 'metrics-processing'} />
+                <SubNavItem label="Retail" onClick={() => onSectionChange('metrics-retail')} active={activeSection === 'metrics-retail'} />
+                <SubNavItem label="Wholesale" onClick={() => onSectionChange('metrics-wholesale')} active={activeSection === 'metrics-wholesale'} />
+                <SubNavItem label="Benevolence" onClick={() => onSectionChange('metrics-benevolence')} active={activeSection === 'metrics-benevolence'} />
+                <SubNavItem label="Call Center" onClick={() => onSectionChange('metrics-call-center')} active={activeSection === 'metrics-call-center'} />
+                <SubNavItem label="Pickups" onClick={() => onSectionChange('metrics-pickups')} active={activeSection === 'metrics-pickups'} />
+              </>
+            )}
+          </div>
+
+          <div>
+            <NavItem
+              icon={Icons.Settings}
+              label="Administration"
+              hasSubmenu
+              onToggle={() => toggleExpand('administration')}
+              active={activeSection?.startsWith('admin-')}
+            />
+            {expanded.administration && (
+              <>
+                <SubNavItem label="Categories" onClick={() => onSectionChange('admin-categories')} active={activeSection === 'admin-categories'} />
+                <SubNavItem label="Locations" onClick={() => onSectionChange('admin-locations')} active={activeSection === 'admin-locations'} />
+                <SubNavItem label="Users" onClick={() => onSectionChange('admin-users')} active={activeSection === 'admin-users'} />
+                <SubNavItem label="Payment Methods" onClick={() => onSectionChange('admin-payment')} active={activeSection === 'admin-payment'} />
+                <SubNavItem label="Targets" onClick={() => onSectionChange('admin-targets')} active={activeSection === 'admin-targets'} />
+              </>
+            )}
+          </div>
+
+          <div>
+            <NavItem
+              icon={Icons.Users}
+              label="People"
+              hasSubmenu
+              onToggle={() => toggleExpand('people')}
+              active={activeSection?.startsWith('people-')}
+            />
+            {expanded.people && (
+              <>
+                <SubNavItem label="Donors" onClick={() => onSectionChange('people-donors')} active={activeSection === 'people-donors'} />
+                <SubNavItem label="Partners" onClick={() => onSectionChange('people-partners')} active={activeSection === 'people-partners'} />
+                <SubNavItem label="Customers" onClick={() => onSectionChange('people-customers')} active={activeSection === 'people-customers'} />
+              </>
+            )}
+          </div>
+
+          <div>
+            <NavItem
+              icon={Icons.ShoppingCart}
+              label="Point of Sale"
+              hasSubmenu
+              onToggle={() => toggleExpand('pos')}
+              active={activeSection?.startsWith('pos-')}
+            />
+            {expanded.pos && (
+              <>
+                <SubNavItem label="Drawers" onClick={() => onSectionChange('pos-drawers')} active={activeSection === 'pos-drawers'} />
+                <SubNavItem label="Transactions" onClick={() => onSectionChange('pos-transactions')} active={activeSection === 'pos-transactions'} />
+              </>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // Dashboard - Overview
+    const DashboardOverview = ({ data, selectedLocation, locations }) => {
+      const [dateRange, setDateRange] = useState({ from: '', to: '' });
+      const [period, setPeriod] = useState('daily');
+
+      const location = locations.find(l => l.id === selectedLocation);
+      const filteredRetail = data.retailSummaries.filter(r => r.locationId === selectedLocation);
+
+      const totalSales = filteredRetail.reduce((sum, r) => sum + r.grossSales, 0);
+      const totalTransactions = filteredRetail.reduce((sum, r) => sum + r.ringsAtRegister, 0);
+      const totalUnits = filteredRetail.reduce((sum, r) => sum + r.piecesStocked, 0);
+      const avgPrice = totalUnits > 0 ? totalSales / totalUnits : 0;
+
+      const salesByCategory = CATEGORIES.reduce((acc, cat) => {
+        const catSales = filteredRetail.reduce((sum, r) => sum + (r.categories[cat.name]?.netSales || 0), 0);
+        acc.push({ name: cat.name, sales: catSales });
+        return acc;
+      }, []).sort((a, b) => b.sales - a.sales);
+
+      const dailySales = filteredRetail.slice(0, 14).reverse().map(r => ({
+        date: formatDate(r.date).split(',')[0],
+        sales: r.grossSales
+      }));
+
+      const categoryMetrics = CATEGORIES.map(cat => {
+        const units = filteredRetail.reduce((sum, r) => sum + (r.categories[cat.name]?.quantity || 0), 0);
+        const sold = Math.floor(units * 0.65);
+        return {
+          category: cat.name,
+          processed: units,
+          sold,
+          sellThrough: units > 0 ? ((sold / units) * 100).toFixed(1) : 0,
+          avgPrice: units > 0 ? (filteredRetail.reduce((sum, r) => sum + (r.categories[cat.name]?.netSales || 0), 0) / units).toFixed(2) : 0
+        };
+      });
+
+      return (
+        <div className="space-y-6">
+          <div className="flex gap-4 items-center bg-white p-4 rounded-lg border border-gray-200">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
+              <input type="date" className="px-3 py-2 border border-gray-300 rounded text-sm" onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+              <input type="date" className="px-3 py-2 border border-gray-300 rounded text-sm" onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setPeriod('daily')} className={`px-3 py-2 text-sm rounded ${period === 'daily' ? 'bg-green-600 text-white' : 'bg-gray-100'}`}>Daily</button>
+              <button onClick={() => setPeriod('weekly')} className={`px-3 py-2 text-sm rounded ${period === 'weekly' ? 'bg-green-600 text-white' : 'bg-gray-100'}`}>Weekly</button>
+              <button onClick={() => setPeriod('monthly')} className={`px-3 py-2 text-sm rounded ${period === 'monthly' ? 'bg-green-600 text-white' : 'bg-gray-100'}`}>Monthly</button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-5 gap-4">
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <p className="text-xs font-medium text-gray-600 mb-1">Sales</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalSales)}</p>
+              <p className="text-xs text-green-600 mt-1">+5.2% vs last month</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <p className="text-xs font-medium text-gray-600 mb-1">Transactions</p>
+              <p className="text-2xl font-bold text-gray-900">{totalTransactions}</p>
+              <p className="text-xs text-green-600 mt-1">+3.1% vs last month</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <p className="text-xs font-medium text-gray-600 mb-1">Production Value</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalSales * 1.3)}</p>
+              <p className="text-xs text-green-600 mt-1">Estimated value</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <p className="text-xs font-medium text-gray-600 mb-1">Avg Price/Piece</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(avgPrice)}</p>
+              <p className="text-xs text-gray-600 mt-1">Per item sold</p>
+            </div>
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <p className="text-xs font-medium text-gray-600 mb-1">Units Processed</p>
+              <p className="text-2xl font-bold text-gray-900">{totalUnits}</p>
+              <p className="text-xs text-green-600 mt-1">Last 30 days</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-5 gap-4 bg-white p-6 rounded-lg border border-gray-200">
+            <Gauge value={Math.min(totalSales / 100, 100)} max={100} label="Sales" />
+            <Gauge value={Math.min(totalSales / 100, 100)} max={100} label="Production Value" />
+            <Gauge value={Math.min(totalUnits / 10, 100)} max={100} label="Units Produced" />
+            <Gauge value={Math.min(avgPrice * 10, 100)} max={100} label="Avg Price" />
+            <Gauge value={Math.floor((totalUnits / (filteredRetail.length * 8)) * 100 || 0)} max={100} label="Efficiency" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">Sales by Category</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={salesByCategory}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Bar dataKey="sales" fill="#4CAF50" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">Daily Sales Trend</h3>
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={dailySales}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip formatter={(value) => formatCurrency(value)} />
+                  <Line type="monotone" dataKey="sales" stroke="#4CAF50" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h3 className="font-semibold mb-4">Sell Through Rate by Category</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold">Category</th>
+                    <th className="text-right px-4 py-3 font-semibold">Units Processed</th>
+                    <th className="text-right px-4 py-3 font-semibold">Units Sold</th>
+                    <th className="text-right px-4 py-3 font-semibold">Sell Through %</th>
+                    <th className="text-right px-4 py-3 font-semibold">Avg Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categoryMetrics.map(m => (
+                    <tr key={m.category} className="border-b hover:bg-gray-50">
+                      <td className="px-4 py-3">{m.category}</td>
+                      <td className="text-right px-4 py-3">{m.processed}</td>
+                      <td className="text-right px-4 py-3">{m.sold}</td>
+                      <td className="text-right px-4 py-3 font-medium">{m.sellThrough}%</td>
+                      <td className="text-right px-4 py-3">{formatCurrency(m.avgPrice)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Donations Module
+    const DonationsModule = ({ data, selectedLocation, locations, onDataChange }) => {
+      const [showForm, setShowForm] = useState(false);
+      const [searchTerm, setSearchTerm] = useState('');
+      const [filterStatus, setFilterStatus] = useState('all');
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        locationId: selectedLocation,
+        donorFirstName: '',
+        donorLastName: '',
+        donorEmail: '',
+        donorPhone: '',
+        partner: '',
+        status: 'Scheduled',
+        totalItems: 0,
+        suggestedValue: 0,
+        totalValue: 0
+      });
+
+      const filteredDonations = data.donations.filter(d => {
+        if (d.locationId !== selectedLocation) return false;
+        if (filterStatus !== 'all' && d.status !== filterStatus) return false;
+        if (searchTerm) {
+          const term = searchTerm.toLowerCase();
+          return d.donorFirstName.toLowerCase().includes(term) ||
+            d.donorLastName.toLowerCase().includes(term) ||
+            d.id.toLowerCase().includes(term);
+        }
+        return true;
+      });
+
+      const handleSubmit = () => {
+        if (editingId) {
+          onDataChange({
+            ...data,
+            donations: data.donations.map(d => d.id === editingId ? { ...formData, id: editingId } : d)
+          });
+          setEditingId(null);
+        } else {
+          onDataChange({
+            ...data,
+            donations: [...data.donations, { ...formData, id: `DON-${Date.now()}` }]
+          });
+        }
+        setShowForm(false);
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          locationId: selectedLocation,
+          donorFirstName: '',
+          donorLastName: '',
+          donorEmail: '',
+          donorPhone: '',
+          partner: '',
+          status: 'Scheduled',
+          totalItems: 0,
+          suggestedValue: 0,
+          totalValue: 0
+        });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Donations</h2>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            >
+              <Icons.Plus size={18} />
+              New Donation
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Donation</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <select value={formData.partner} onChange={(e) => setFormData({ ...formData, partner: e.target.value })} className="px-3 py-2 border border-gray-300 rounded">
+                  <option value="">Select Partner</option>
+                  {PARTNERS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <input type="text" placeholder="First Name" value={formData.donorFirstName} onChange={(e) => setFormData({ ...formData, donorFirstName: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="text" placeholder="Last Name" value={formData.donorLastName} onChange={(e) => setFormData({ ...formData, donorLastName: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="email" placeholder="Email" value={formData.donorEmail} onChange={(e) => setFormData({ ...formData, donorEmail: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="tel" placeholder="Phone" value={formData.donorPhone} onChange={(e) => setFormData({ ...formData, donorPhone: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Total Items" value={formData.totalItems} onChange={(e) => setFormData({ ...formData, totalItems: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Suggested Value" value={formData.suggestedValue} onChange={(e) => setFormData({ ...formData, suggestedValue: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Total Value" value={formData.totalValue} onChange={(e) => setFormData({ ...formData, totalValue: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="px-3 py-2 border border-gray-300 rounded">
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Received">Received</option>
+                  <option value="Closed">Closed</option>
+                </select>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+                <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-4 bg-white p-4 rounded-lg border border-gray-200">
+            <input
+              type="text"
+              placeholder="Search by name or ID..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded"
+            />
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2 border border-gray-300 rounded">
+              <option value="all">All Status</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Received">Received</option>
+              <option value="Closed">Closed</option>
+            </select>
+            <button onClick={() => downloadCSV(filteredDonations, 'donations.csv')} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700">
+              <Icons.Download size={18} />
+              CSV
+            </button>
+          </div>
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">ID</th>
+                  <th className="text-left px-4 py-3 font-semibold">Date</th>
+                  <th className="text-left px-4 py-3 font-semibold">Donor</th>
+                  <th className="text-left px-4 py-3 font-semibold">Partner</th>
+                  <th className="text-left px-4 py-3 font-semibold">Status</th>
+                  <th className="text-right px-4 py-3 font-semibold">Items</th>
+                  <th className="text-right px-4 py-3 font-semibold">Value</th>
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDonations.map(d => (
+                  <tr key={d.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3 font-mono text-xs">{d.id}</td>
+                    <td className="px-4 py-3">{formatDate(d.date)}</td>
+                    <td className="px-4 py-3">{d.donorFirstName} {d.donorLastName}</td>
+                    <td className="px-4 py-3">{d.partner}</td>
+                    <td className="px-4 py-3"><span className={`px-2 py-1 rounded text-xs font-medium ${d.status === 'Received' ? 'bg-green-100 text-green-800' : d.status === 'Closed' ? 'bg-gray-100 text-gray-800' : 'bg-yellow-100 text-yellow-800'}`}>{d.status}</span></td>
+                    <td className="text-right px-4 py-3">{d.totalItems}</td>
+                    <td className="text-right px-4 py-3">{formatCurrency(d.totalValue)}</td>
+                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                      <button onClick={() => { setEditingId(d.id); setFormData(d); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                      <button onClick={() => onDataChange({ ...data, donations: data.donations.filter(x => x.id !== d.id) })} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Retail Metrics Module
+    const RetailMetricsModule = ({ data, selectedLocation, locations, onDataChange }) => {
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        locationId: selectedLocation,
+        grossSales: 0,
+        netSales: 0,
+        salesTax: 0,
+        taxableSales: 0,
+        nonTaxableSales: 0,
+        unreconciled: 0,
+        laborHours: 0,
+        hoursOpen: 8,
+        ringsAtRegister: 0,
+        donations: 0,
+        piecesStocked: 0,
+        depositAmount: 0,
+        creditCardDeposits: [0, 0, 0, 0],
+        payoutAmount: 0,
+        notes: '',
+        categories: {},
+        paymentMethods: { cash: 0, creditCard: 0, giftCard: 0 }
+      });
+
+      const filteredRetail = data.retailSummaries.filter(r => r.locationId === selectedLocation);
+
+      const handleSubmit = () => {
+        if (editingId) {
+          onDataChange({
+            ...data,
+            retailSummaries: data.retailSummaries.map(r => r.id === editingId ? { ...formData, id: editingId } : r)
+          });
+          setEditingId(null);
+        } else {
+          onDataChange({
+            ...data,
+            retailSummaries: [...data.retailSummaries, { ...formData, id: `RET-${Date.now()}` }]
+          });
+        }
+        setShowForm(false);
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          locationId: selectedLocation,
+          grossSales: 0,
+          netSales: 0,
+          salesTax: 0,
+          taxableSales: 0,
+          nonTaxableSales: 0,
+          unreconciled: 0,
+          laborHours: 0,
+          hoursOpen: 8,
+          ringsAtRegister: 0,
+          donations: 0,
+          piecesStocked: 0,
+          depositAmount: 0,
+          creditCardDeposits: [0, 0, 0, 0],
+          payoutAmount: 0,
+          notes: '',
+          categories: {},
+          paymentMethods: { cash: 0, creditCard: 0, giftCard: 0 }
+        });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Retail Summaries</h2>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            >
+              <Icons.Plus size={18} />
+              New Summary
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200 max-h-96 overflow-y-auto">
+              <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Retail Summary</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="px-3 py-2 border border-gray-300 rounded col-span-3" />
+                <input type="number" placeholder="Gross Sales" value={formData.grossSales} onChange={(e) => setFormData({ ...formData, grossSales: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Net Sales" value={formData.netSales} onChange={(e) => setFormData({ ...formData, netSales: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Labor Hours" value={formData.laborHours} onChange={(e) => setFormData({ ...formData, laborHours: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Hours Open" value={formData.hoursOpen} onChange={(e) => setFormData({ ...formData, hoursOpen: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Rings at Register" value={formData.ringsAtRegister} onChange={(e) => setFormData({ ...formData, ringsAtRegister: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Pieces Stocked" value={formData.piecesStocked} onChange={(e) => setFormData({ ...formData, piecesStocked: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <textarea placeholder="Notes" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="px-3 py-2 border border-gray-300 rounded col-span-3" />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+                <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <button onClick={() => downloadCSV(filteredRetail, 'retail-summaries.csv')} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700">
+            <Icons.Download size={18} />
+            Export CSV
+          </button>
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Date</th>
+                  <th className="text-right px-4 py-3 font-semibold">Gross Sales</th>
+                  <th className="text-right px-4 py-3 font-semibold">Net Sales</th>
+                  <th className="text-right px-4 py-3 font-semibold">Labor Hours</th>
+                  <th className="text-right px-4 py-3 font-semibold">Rings</th>
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRetail.map(r => (
+                  <tr key={r.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">{formatDate(r.date)}</td>
+                    <td className="text-right px-4 py-3">{formatCurrency(r.grossSales)}</td>
+                    <td className="text-right px-4 py-3">{formatCurrency(r.netSales)}</td>
+                    <td className="text-right px-4 py-3">{r.laborHours}</td>
+                    <td className="text-right px-4 py-3">{r.ringsAtRegister}</td>
+                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                      <button onClick={() => { setEditingId(r.id); setFormData(r); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                      <button onClick={() => onDataChange({ ...data, retailSummaries: data.retailSummaries.filter(x => x.id !== r.id) })} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Processing Metrics Module
+    const ProcessingMetricsModule = ({ data, selectedLocation, onDataChange }) => {
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        locationId: selectedLocation,
+        createdBy: '',
+        laborHours: 0,
+        unitsProcessed: 0
+      });
+
+      const filteredProcessing = data.processingSummaries.filter(p => p.locationId === selectedLocation);
+
+      const handleSubmit = () => {
+        if (editingId) {
+          onDataChange({
+            ...data,
+            processingSummaries: data.processingSummaries.map(p => p.id === editingId ? { ...formData, id: editingId } : p)
+          });
+          setEditingId(null);
+        } else {
+          onDataChange({
+            ...data,
+            processingSummaries: [...data.processingSummaries, { ...formData, id: `PROC-${Date.now()}` }]
+          });
+        }
+        setShowForm(false);
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          locationId: selectedLocation,
+          createdBy: '',
+          laborHours: 0,
+          unitsProcessed: 0
+        });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Processing Summaries</h2>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            >
+              <Icons.Plus size={18} />
+              New Summary
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Processing Summary</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="text" placeholder="Created By" value={formData.createdBy} onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Labor Hours" value={formData.laborHours} onChange={(e) => setFormData({ ...formData, laborHours: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Units Processed" value={formData.unitsProcessed} onChange={(e) => setFormData({ ...formData, unitsProcessed: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+                <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <button onClick={() => downloadCSV(filteredProcessing, 'processing-summaries.csv')} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700">
+            <Icons.Download size={18} />
+            Export CSV
+          </button>
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Date</th>
+                  <th className="text-left px-4 py-3 font-semibold">Created By</th>
+                  <th className="text-right px-4 py-3 font-semibold">Labor Hours</th>
+                  <th className="text-right px-4 py-3 font-semibold">Units Processed</th>
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProcessing.map(p => (
+                  <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">{formatDate(p.date)}</td>
+                    <td className="px-4 py-3">{p.createdBy}</td>
+                    <td className="text-right px-4 py-3">{p.laborHours}</td>
+                    <td className="text-right px-4 py-3">{p.unitsProcessed}</td>
+                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                      <button onClick={() => { setEditingId(p.id); setFormData(p); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                      <button onClick={() => onDataChange({ ...data, processingSummaries: data.processingSummaries.filter(x => x.id !== p.id) })} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Truck Stops Module
+    const TruckStopsModule = ({ data, selectedLocation, onDataChange }) => {
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        locationId: selectedLocation,
+        driver: '',
+        notes: ''
+      });
+
+      const filteredTrucks = data.truckStops.filter(t => t.locationId === selectedLocation);
+
+      const handleSubmit = () => {
+        if (editingId) {
+          onDataChange({
+            ...data,
+            truckStops: data.truckStops.map(t => t.id === editingId ? { ...formData, id: editingId } : t)
+          });
+          setEditingId(null);
+        } else {
+          onDataChange({
+            ...data,
+            truckStops: [...data.truckStops, { ...formData, id: `TRUCK-${Date.now()}` }]
+          });
+        }
+        setShowForm(false);
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          locationId: selectedLocation,
+          driver: '',
+          notes: ''
+        });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Truck Stops</h2>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            >
+              <Icons.Plus size={18} />
+              New Truck Stop
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Truck Stop</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="text" placeholder="Driver" value={formData.driver} onChange={(e) => setFormData({ ...formData, driver: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <textarea placeholder="Notes" value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} className="px-3 py-2 border border-gray-300 rounded col-span-2" />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+                <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Date</th>
+                  <th className="text-left px-4 py-3 font-semibold">Driver</th>
+                  <th className="text-left px-4 py-3 font-semibold">Notes</th>
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTrucks.map(t => (
+                  <tr key={t.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">{formatDate(t.date)}</td>
+                    <td className="px-4 py-3">{t.driver}</td>
+                    <td className="px-4 py-3">{t.notes}</td>
+                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                      <button onClick={() => { setEditingId(t.id); setFormData(t); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                      <button onClick={() => onDataChange({ ...data, truckStops: data.truckStops.filter(x => x.id !== t.id) })} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Categories Administration
+    const CategoriesModule = ({ data, onDataChange }) => {
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({
+        name: '',
+        value: 0,
+        modules: []
+      });
+
+      const handleSubmit = () => {
+        setShowForm(false);
+        setFormData({ name: '', value: 0, modules: [] });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Categories</h2>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            >
+              <Icons.Plus size={18} />
+              New Category
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Category</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Value" step="0.01" value={formData.value} onChange={(e) => setFormData({ ...formData, value: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+                <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Name</th>
+                  <th className="text-right px-4 py-3 font-semibold">Value</th>
+                  <th className="text-left px-4 py-3 font-semibold">Modules</th>
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {CATEGORIES.map(c => (
+                  <tr key={c.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">{c.name}</td>
+                    <td className="text-right px-4 py-3">{formatCurrency(c.value)}</td>
+                    <td className="px-4 py-3 text-xs">{c.modules.join(', ')}</td>
+                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                      <button onClick={() => { setEditingId(c.id); setFormData(c); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Locations Administration
+    const LocationsModule = ({ data, onDataChange }) => {
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({
+        name: '',
+        phone: '',
+        address: '',
+        city: '',
+        state: ''
+      });
+
+      const handleSubmit = () => {
+        setShowForm(false);
+        setFormData({ name: '', phone: '', address: '', city: '', state: '' });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Locations</h2>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            >
+              <Icons.Plus size={18} />
+              New Location
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Location</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="text" placeholder="Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="tel" placeholder="Phone" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="text" placeholder="Address" value={formData.address} onChange={(e) => setFormData({ ...formData, address: e.target.value })} className="px-3 py-2 border border-gray-300 rounded col-span-2" />
+                <input type="text" placeholder="City" value={formData.city} onChange={(e) => setFormData({ ...formData, city: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="text" placeholder="State" value={formData.state} onChange={(e) => setFormData({ ...formData, state: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+                <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Name</th>
+                  <th className="text-left px-4 py-3 font-semibold">Phone</th>
+                  <th className="text-left px-4 py-3 font-semibold">Address</th>
+                  <th className="text-left px-4 py-3 font-semibold">City</th>
+                  <th className="text-left px-4 py-3 font-semibold">State</th>
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {LOCATIONS.map(l => (
+                  <tr key={l.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium">{l.name}</td>
+                    <td className="px-4 py-3">{l.phone}</td>
+                    <td className="px-4 py-3">{l.address}</td>
+                    <td className="px-4 py-3">{l.city}</td>
+                    <td className="px-4 py-3">{l.state}</td>
+                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                      <button onClick={() => { setEditingId(l.id); setFormData(l); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Generic List Module
+    const ListModule = ({ title, data, columns, onEdit, onDelete }) => {
+      return (
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-gray-900">{title}</h2>
+          <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  {columns.map(col => (
+                    <th key={col} className="text-left px-4 py-3 font-semibold">{col}</th>
+                  ))}
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.length === 0 ? (
+                  <tr><td colSpan={columns.length + 1} className="px-4 py-3 text-center text-gray-500">No data</td></tr>
+                ) : (
+                  data.map((item, idx) => (
+                    <tr key={idx} className="border-b hover:bg-gray-50">
+                      {columns.map(col => (
+                        <td key={col} className="px-4 py-3">
+                          {typeof item[col] === 'number' && item[col] > 100 ? formatCurrency(item[col]) : String(item[col])}
+                        </td>
+                      ))}
+                      <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                        <button onClick={() => onEdit(idx)} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                        <button onClick={() => onDelete(idx)} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // Pickups Module
+    const PickupsModule = ({ data, selectedLocation, onDataChange }) => {
+      const [showForm, setShowForm] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [formData, setFormData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        locationId: selectedLocation,
+        donor: '',
+        items: 0
+      });
+
+      const filteredPickups = data.pickupsSummaries.filter(p => p.locationId === selectedLocation);
+
+      const handleSubmit = () => {
+        if (editingId) {
+          onDataChange({
+            ...data,
+            pickupsSummaries: data.pickupsSummaries.map(p => p.id === editingId ? { ...formData, id: editingId } : p)
+          });
+          setEditingId(null);
+        } else {
+          onDataChange({
+            ...data,
+            pickupsSummaries: [...data.pickupsSummaries, { ...formData, id: `PICK-${Date.now()}` }]
+          });
+        }
+        setShowForm(false);
+        setFormData({
+          date: new Date().toISOString().split('T')[0],
+          locationId: selectedLocation,
+          donor: '',
+          items: 0
+        });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Pickups</h2>
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
+            >
+              <Icons.Plus size={18} />
+              New Pickup
+            </button>
+          </div>
+
+          {showForm && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Pickup</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="text" placeholder="Donor" value={formData.donor} onChange={(e) => setFormData({ ...formData, donor: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
+                <input type="number" placeholder="Items" value={formData.items} onChange={(e) => setFormData({ ...formData, items: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded col-span-2" />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+                <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left px-4 py-3 font-semibold">Date</th>
+                  <th className="text-left px-4 py-3 font-semibold">Donor</th>
+                  <th className="text-right px-4 py-3 font-semibold">Items</th>
+                  <th className="text-center px-4 py-3 font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPickups.map(p => (
+                  <tr key={p.id} className="border-b hover:bg-gray-50">
+                    <td className="px-4 py-3">{formatDate(p.date)}</td>
+                    <td className="px-4 py-3">{p.donor}</td>
+                    <td className="text-right px-4 py-3">{p.items}</td>
+                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
+                      <button onClick={() => { setEditingId(p.id); setFormData(p); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                      <button onClick={() => onDataChange({ ...data, pickupsSummaries: data.pickupsSummaries.filter(x => x.id !== p.id) })} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    };
+
+    // ============================================================================
+    // MAIN APPLICATION
+    // ============================================================================
+
+    function BridgeThriftApp() {
+      const [data, setData] = useState(initializeData());
+      const [selectedLocation, setSelectedLocation] = useState(1);
+      const [activeSection, setActiveSection] = useState('overview');
+
+      const renderContent = () => {
+        const location = LOCATIONS.find(l => l.id === selectedLocation);
+
+        switch (activeSection) {
+          case 'overview':
+            return <DashboardOverview data={data} selectedLocation={selectedLocation} locations={LOCATIONS} />;
+          case 'donations':
+            return <DonationsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
+          case 'truck_stops':
+            return <TruckStopsModule data={data} selectedLocation={selectedLocation} onDataChange={setData} />;
+          case 'events':
+            return <ListModule title="Events" data={data.events} columns={['date', 'name', 'description']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, events: data.events.filter((_, i) => i !== idx) })} />;
+          case 'metrics-processing':
+            return <ProcessingMetricsModule data={data} selectedLocation={selectedLocation} onDataChange={setData} />;
+          case 'metrics-retail':
+            return <RetailMetricsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
+          case 'metrics-wholesale':
+            return <ListModule title="Wholesale Summaries" data={data.wholesaleSummaries || []} columns={['date', 'location']} onEdit={() => {}} onDelete={() => {}} />;
+          case 'metrics-benevolence':
+            return <ListModule title="Benevolence Gifts" data={data.benevolenceGifts} columns={['date', 'recipient', 'amount', 'description']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, benevolenceGifts: data.benevolenceGifts.filter((_, i) => i !== idx) })} />;
+          case 'metrics-call-center':
+            return <ListModule title="Call Center Summaries" data={data.callCenterSummaries || []} columns={['date', 'location', 'calls']} onEdit={() => {}} onDelete={() => {}} />;
+          case 'metrics-pickups':
+            return <PickupsModule data={data} selectedLocation={selectedLocation} onDataChange={setData} />;
+          case 'admin-categories':
+            return <CategoriesModule data={data} onDataChange={setData} />;
+          case 'admin-locations':
+            return <LocationsModule data={data} onDataChange={setData} />;
+          case 'admin-users':
+            return <ListModule title="Users" data={data.users} columns={['name', 'email', 'role']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, users: data.users.filter((_, i) => i !== idx) })} />;
+          case 'admin-payment':
+            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Payment Methods management</p></div>;
+          case 'admin-targets':
+            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Sales Targets management</p></div>;
+          case 'people-donors':
+            return <ListModule title="Donors" data={data.donors} columns={['firstName', 'lastName', 'email', 'phone']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, donors: data.donors.filter((_, i) => i !== idx) })} />;
+          case 'people-partners':
+            return (
+              <div className="space-y-4">
+                <h2 className="text-2xl font-bold text-gray-900">Partners</h2>
+                <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b">
+                      <tr><th className="text-left px-4 py-3 font-semibold">Partner Organization</th></tr>
+                    </thead>
+                    <tbody>
+                      {PARTNERS.map(p => (
+                        <tr key={p} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-3">{p}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          case 'people-customers':
+            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Customers management</p></div>;
+          case 'pos-drawers':
+            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Cash Drawer management</p></div>;
+          case 'pos-transactions':
+            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Point of Sale Transactions</p></div>;
+          case 'dashboard-donations':
+            return <DonationsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
+          case 'dashboard-processing':
+            return <ProcessingMetricsModule data={data} selectedLocation={selectedLocation} onDataChange={setData} />;
+          case 'dashboard-retail':
+            return <RetailMetricsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
+          case 'dashboard-wholesale':
+            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Wholesale Dashboard</p></div>;
+          default:
+            return <DashboardOverview data={data} selectedLocation={selectedLocation} locations={LOCATIONS} />;
+        }
+      };
+
+      return (
+        <div className="flex h-screen bg-gray-50">
+          <Sidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Navbar selectedLocation={selectedLocation} locations={LOCATIONS} onLocationChange={setSelectedLocation} userName="Jared Stoltzfus" />
+            <main className="flex-1 overflow-auto p-8">
+              {renderContent()}
+            </main>
+          </div>
+        </div>
+      );
+    }
+
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<BridgeThriftApp />);
+  </script>
+</body>
+</html>
