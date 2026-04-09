@@ -1200,40 +1200,54 @@
     };
 
     // Processing Metrics Module
+    const PROCESSING_CATEGORIES = ['Clothing', 'Shoes', 'Jewelry', 'Accessories', 'Linens', 'Household', 'Electronics', 'Media', 'Furniture', 'Seasonal', 'Paper Bag', 'Outlet'];
+
+    const emptyProcessingForm = () => ({
+      date: new Date().toISOString().split('T')[0],
+      locationId: 0,
+      laborHours: 0,
+      units: {
+        Clothing: 0, Shoes: 0, Jewelry: 0, Accessories: 0, Linens: 0,
+        Household: 0, Electronics: 0, Media: 0, Furniture: 0,
+        Seasonal: 0, 'Paper Bag': 0, Outlet: 0
+      }
+    });
+
     const ProcessingMetricsModule = ({ data, selectedLocation, onDataChange }) => {
       const [showForm, setShowForm] = useState(false);
       const [editingId, setEditingId] = useState(null);
-      const [formData, setFormData] = useState({
-        date: new Date().toISOString().split('T')[0],
-        locationId: selectedLocation,
-        createdBy: '',
-        laborHours: 0,
-        unitsProcessed: 0
-      });
+      const [formData, setFormData] = useState({ ...emptyProcessingForm(), locationId: selectedLocation });
 
       const filteredProcessing = data.processingSummaries.filter(p => p.locationId === selectedLocation);
 
+      const totalUnits = (p) => {
+        if (!p.units) return p.unitsProcessed || 0;
+        return PROCESSING_CATEGORIES.reduce((sum, cat) => sum + (p.units[cat] || 0), 0);
+      };
+
       const handleSubmit = () => {
+        const entry = { ...formData, locationId: selectedLocation, totalUnits: totalUnits(formData) };
         if (editingId) {
           onDataChange({
             ...data,
-            processingSummaries: data.processingSummaries.map(p => p.id === editingId ? { ...formData, id: editingId } : p)
+            processingSummaries: data.processingSummaries.map(p => p.id === editingId ? { ...entry, id: editingId } : p)
           });
           setEditingId(null);
         } else {
           onDataChange({
             ...data,
-            processingSummaries: [...data.processingSummaries, { ...formData, id: `PROC-${Date.now()}` }]
+            processingSummaries: [...data.processingSummaries, { ...entry, id: `PROC-${Date.now()}` }]
           });
         }
         setShowForm(false);
-        setFormData({
-          date: new Date().toISOString().split('T')[0],
-          locationId: selectedLocation,
-          createdBy: '',
-          laborHours: 0,
-          unitsProcessed: 0
-        });
+        setFormData({ ...emptyProcessingForm(), locationId: selectedLocation });
+      };
+
+      const updateUnit = (cat, value) => {
+        setFormData(prev => ({
+          ...prev,
+          units: { ...prev.units, [cat]: Number(value) || 0 }
+        }));
       };
 
       return (
@@ -1241,7 +1255,7 @@
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-900">Processing Summaries</h2>
             <button
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => { setFormData({ ...emptyProcessingForm(), locationId: selectedLocation }); setEditingId(null); setShowForm(!showForm); }}
               className="bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-green-700"
             >
               <Icons.Plus size={18} />
@@ -1252,20 +1266,56 @@
           {showForm && (
             <div className="bg-white p-6 rounded-lg border border-gray-200">
               <h3 className="font-semibold mb-4">{editingId ? 'Edit' : 'New'} Processing Summary</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
-                <input type="text" placeholder="Created By" value={formData.createdBy} onChange={(e) => setFormData({ ...formData, createdBy: e.target.value })} className="px-3 py-2 border border-gray-300 rounded" />
-                <input type="number" placeholder="Labor Hours" value={formData.laborHours} onChange={(e) => setFormData({ ...formData, laborHours: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
-                <input type="number" placeholder="Units Processed" value={formData.unitsProcessed} onChange={(e) => setFormData({ ...formData, unitsProcessed: Number(e.target.value) })} className="px-3 py-2 border border-gray-300 rounded" />
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-3">Processing Daily Metrics</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                    <input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Labor Hours</label>
+                    <input type="number" step="0.1" placeholder="0.0" value={formData.laborHours || ''} onChange={(e) => setFormData({ ...formData, laborHours: Number(e.target.value) })} className="w-full px-3 py-2 border border-gray-300 rounded" />
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-2 mt-4">
-                <button onClick={handleSubmit} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Save</button>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <p className="text-xs font-semibold text-green-700 uppercase tracking-wide mb-3">Units Processed</p>
+                <div className="grid grid-cols-3 gap-3">
+                  {PROCESSING_CATEGORIES.map(cat => (
+                    <div key={cat}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{cat}</label>
+                      <input
+                        type="number"
+                        placeholder="0"
+                        value={formData.units[cat] || ''}
+                        onChange={(e) => updateUnit(cat, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 pt-3 border-t border-green-200 flex justify-between items-center">
+                  <span className="text-sm font-medium text-gray-700">Total Units</span>
+                  <span className="text-lg font-bold text-green-700">{totalUnits(formData)}</span>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button onClick={handleSubmit} className="bg-green-600 text-white px-6 py-2 rounded hover:bg-green-700 font-medium">Save</button>
                 <button onClick={() => { setShowForm(false); setEditingId(null); }} className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
               </div>
             </div>
           )}
 
-          <button onClick={() => downloadCSV(filteredProcessing, 'processing-summaries.csv')} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700">
+          <button onClick={() => downloadCSV(filteredProcessing.map(p => {
+            const row = { date: p.date, laborHours: p.laborHours };
+            PROCESSING_CATEGORIES.forEach(cat => { row[cat] = p.units ? (p.units[cat] || 0) : 0; });
+            row.totalUnits = totalUnits(p);
+            return row;
+          }), 'processing-summaries.csv')} className="bg-blue-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-blue-700">
             <Icons.Download size={18} />
             Export CSV
           </button>
@@ -1275,22 +1325,28 @@
               <thead className="bg-gray-50 border-b">
                 <tr>
                   <th className="text-left px-4 py-3 font-semibold">Date</th>
-                  <th className="text-left px-4 py-3 font-semibold">Created By</th>
-                  <th className="text-right px-4 py-3 font-semibold">Labor Hours</th>
-                  <th className="text-right px-4 py-3 font-semibold">Units Processed</th>
+                  <th className="text-right px-4 py-3 font-semibold">Labor Hrs</th>
+                  {PROCESSING_CATEGORIES.map(cat => (
+                    <th key={cat} className="text-right px-3 py-3 font-semibold text-xs">{cat}</th>
+                  ))}
+                  <th className="text-right px-4 py-3 font-semibold">Total</th>
                   <th className="text-center px-4 py-3 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredProcessing.map(p => (
                   <tr key={p.id} className="border-b hover:bg-gray-50">
-                    <td className="px-4 py-3">{formatDate(p.date)}</td>
-                    <td className="px-4 py-3">{p.createdBy}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{formatDate(p.date)}</td>
                     <td className="text-right px-4 py-3">{p.laborHours}</td>
-                    <td className="text-right px-4 py-3">{p.unitsProcessed}</td>
-                    <td className="text-center px-4 py-3 flex gap-2 justify-center">
-                      <button onClick={() => { setEditingId(p.id); setFormData(p); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
-                      <button onClick={() => onDataChange({ ...data, processingSummaries: data.processingSummaries.filter(x => x.id !== p.id) })} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                    {PROCESSING_CATEGORIES.map(cat => (
+                      <td key={cat} className="text-right px-3 py-3 text-xs">{p.units ? (p.units[cat] || 0) : 0}</td>
+                    ))}
+                    <td className="text-right px-4 py-3 font-medium">{totalUnits(p)}</td>
+                    <td className="text-center px-4 py-3">
+                      <div className="flex gap-2 justify-center">
+                        <button onClick={() => { setEditingId(p.id); setFormData({ ...emptyProcessingForm(), ...p, units: { ...emptyProcessingForm().units, ...(p.units || {}) } }); setShowForm(true); }} className="text-blue-600 hover:text-blue-800"><Icons.Edit2 size={16} /></button>
+                        <button onClick={() => onDataChange({ ...data, processingSummaries: data.processingSummaries.filter(x => x.id !== p.id) })} className="text-red-600 hover:text-red-800"><Icons.Trash2 size={16} /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
