@@ -81,145 +81,24 @@
     ];
 
     const initializeData = () => {
-      const now = new Date();
-      const donations = [];
-      const retailSummaries = [];
-      const processingSummaries = [];
-      const pickupsSummaries = [];
-      const truckStops = [];
-      const events = [];
-      const benevolenceGifts = [];
-
-      // Generate 30 days of sample data
-      for (let d = 0; d < 30; d++) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - d);
-        const dateStr = date.toISOString().split('T')[0];
-
-        LOCATIONS.forEach((location, locIdx) => {
-          // Donations
-          donations.push({
-            id: `DON-${dateStr}-${locIdx}`,
-            date: dateStr,
-            locationId: location.id,
-            donorFirstName: ['John', 'Jane', 'Michael', 'Sarah'][Math.floor(Math.random() * 4)],
-            donorLastName: ['Smith', 'Johnson', 'Williams', 'Brown'][Math.floor(Math.random() * 4)],
-            donorEmail: `donor${locIdx}@example.com`,
-            donorPhone: '619-555-0100',
-            partner: PARTNERS[Math.floor(Math.random() * PARTNERS.length)],
-            status: ['Scheduled', 'Received', 'Closed'][Math.floor(Math.random() * 3)],
-            totalItems: Math.floor(Math.random() * 200) + 20,
-            suggestedValue: Math.floor(Math.random() * 2000) + 200,
-            totalValue: Math.floor(Math.random() * 1500) + 150
-          });
-
-          // Retail Summaries
-          const grossSales = Math.floor(Math.random() * 6000) + 1500;
-          retailSummaries.push({
-            id: `RET-${dateStr}-${locIdx}`,
-            date: dateStr,
-            locationId: location.id,
-            grossSales,
-            netSales: Math.floor(grossSales * 0.92),
-            salesTax: Math.floor(grossSales * 0.08),
-            taxableSales: Math.floor(grossSales * 0.7),
-            nonTaxableSales: Math.floor(grossSales * 0.3),
-            unreconciled: Math.floor(Math.random() * 100),
-            laborHours: Math.floor(Math.random() * 8) + 4,
-            hoursOpen: 8,
-            ringsAtRegister: Math.floor(Math.random() * 100) + 20,
-            donations: Math.floor(Math.random() * 500),
-            piecesStocked: Math.floor(Math.random() * 300) + 50,
-            depositAmount: Math.floor(grossSales * 0.8),
-            creditCardDeposits: [
-              Math.floor(grossSales * 0.3),
-              Math.floor(grossSales * 0.3),
-              Math.floor(grossSales * 0.2),
-              0
-            ],
-            payoutAmount: Math.floor(Math.random() * 200),
-            notes: '',
-            categories: CATEGORIES.reduce((acc, cat) => {
-              acc[cat.name] = {
-                netSales: Math.floor(Math.random() * 500) + 50,
-                quantity: Math.floor(Math.random() * 50) + 5,
-                pulls: Math.floor(Math.random() * 100) + 10
-              };
-              return acc;
-            }, {}),
-            paymentMethods: {
-              cash: Math.floor(grossSales * 0.4),
-              creditCard: Math.floor(grossSales * 0.5),
-              giftCard: Math.floor(grossSales * 0.1)
-            }
-          });
-
-          // Processing Summaries
-          processingSummaries.push({
-            id: `PROC-${dateStr}-${locIdx}`,
-            date: dateStr,
-            locationId: location.id,
-            createdBy: 'Staff',
-            laborHours: Math.floor(Math.random() * 6) + 2,
-            unitsProcessed: Math.floor(Math.random() * 400) + 100
-          });
-
-          // Pickups
-          pickupsSummaries.push({
-            id: `PICK-${dateStr}-${locIdx}`,
-            date: dateStr,
-            locationId: location.id,
-            donor: ['John Donor', 'Jane Giver', 'Anonymous'][Math.floor(Math.random() * 3)],
-            items: Math.floor(Math.random() * 150) + 20
-          });
-
-          // Truck Stops
-          if (Math.random() > 0.7) {
-            truckStops.push({
-              id: `TRUCK-${dateStr}-${locIdx}`,
-              date: dateStr,
-              locationId: location.id,
-              driver: ['Driver A', 'Driver B', 'Driver C'][Math.floor(Math.random() * 3)],
-              notes: 'Regular pickup'
-            });
-          }
-
-          // Benevolence Gifts
-          if (Math.random() > 0.8) {
-            benevolenceGifts.push({
-              id: `BEN-${dateStr}-${locIdx}`,
-              date: dateStr,
-              recipient: 'Community Member',
-              amount: Math.floor(Math.random() * 500) + 50,
-              description: 'Clothing donation'
-            });
-          }
-        });
-      }
-
       return {
-        donations,
-        retailSummaries,
-        processingSummaries,
-        pickupsSummaries,
-        truckStops,
-        events: [
-          { id: 1, date: new Date().toISOString().split('T')[0], name: 'Community Donation Drive', locationId: 1, description: 'Monthly drive' }
-        ],
-        benevolenceGifts,
-        donors: [
-          { id: 1, firstName: 'John', lastName: 'Smith', email: 'john@example.com', phone: '619-555-0100', totalDonations: 15, totalValue: 3000 },
-          { id: 2, firstName: 'Jane', lastName: 'Johnson', email: 'jane@example.com', phone: '619-555-0101', totalDonations: 8, totalValue: 1500 }
-        ],
+        donations: [],
+        retailSummaries: [],
+        processingSummaries: [],
+        pickupsSummaries: [],
+        truckStops: [],
+        events: [],
+        benevolenceGifts: [],
+        donors: [],
         users: [
-          { id: 1, name: 'Jared Stoltzfus', email: 'jared@bridgethrift.org', role: 'Admin' },
-          { id: 2, name: 'Staff Member', email: 'staff@bridgethrift.org', role: 'Staff' }
+          { id: 1, name: 'Jared Stoltzfus', email: 'jared@bridgethrift.org', role: 'Admin' }
         ],
         callCenterSummaries: [],
         distributionSummaries: [],
         payrollSummaries: [],
         wholesaleSummaries: []
       };
+    };
     };
 
     // ============================================================================
