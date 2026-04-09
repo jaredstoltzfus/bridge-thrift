@@ -19,7 +19,7 @@
   <div id="root"></div>
 
   <script type="text/babel-app" id="app-code">
-    const { useState, useCallback, useMemo } = React;
+    const { useState, useCallback, useMemo, useEffect } = React;
     const { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.RechartsLib;
 
     // SVG Icon Components
@@ -136,6 +136,393 @@
       a.download = filename;
       a.click();
       window.URL.revokeObjectURL(url);
+    };
+
+    // ============================================================================
+    // TARGETS - CSV UPLOAD & STORAGE
+    // ============================================================================
+
+    // Map Google Sheet location codes to app location IDs
+    const LOCATION_CODE_TO_ID = {
+      '302': 1,   // Clairemont
+    };
+    const LOCATION_ID_TO_CODE = { 1: '302' };
+
+    const parseCSVLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') {
+          inQuotes = !inQuotes;
+        } else if (line[i] === ',' && !inQuotes) {
+          result.push(current);
+          current = '';
+        } else {
+          current += line[i];
+        }
+      }
+      result.push(current);
+      return result;
+    };
+
+    const parseCSV = (text) => {
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) return [];
+      const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, ''));
+      return lines.slice(1).map(line => {
+        const values = parseCSVLine(line);
+        const obj = {};
+        headers.forEach((h, i) => {
+          obj[h] = (values[i] || '').trim().replace(/^"|"$/g, '');
+        });
+        return obj;
+      });
+    };
+
+    // Detect CSV format and parse targets accordingly
+    const parseTargetsCSV = (text) => {
+      const lines = text.split('\n').filter(l => l.trim());
+      if (lines.length < 2) return { daily: [], monthly: {}, loaded: true };
+
+      const firstLine = lines[0].toLowerCase();
+
+      // Check if this is the "Targets" tab format (has Type, Date, Location ID columns)
+      if (firstLine.includes('type') && firstLine.includes('date') && firstLine.includes('location')) {
+        const rows = parseCSV(text);
+        const daily = rows.map(row => ({
+          type: (row['Type'] || '').toLowerCase(),
+          date: row['Date'] || '',
+          locationCode: row['Location ID'] || '',
+          locationId: LOCATION_CODE_TO_ID[row['Location ID']] || null,
+          amount1: parseFloat(row['Amount 1']) || 0,
+          amount2: parseFloat(row['Amount 2']) || 0,
+          amount3: parseFloat(row['Amount 3']) || 0,
+          amount4: parseFloat(row['Amount 4']) || 0,
+        }));
+
+        // Aggregate daily targets into monthly
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+        const monthlyDays = daily.filter(d => {
+          const dt = new Date(d.date);
+          return dt.getMonth() === currentMonth && dt.getFullYear() === currentYear && d.type === 'retail';
+        });
+        const monthlySalesTarget = monthlyDays.reduce((sum, d) => sum + d.amount1, 0);
+
+        return {
+          daily,
+          monthly: monthlySalesTarget > 0 ? {
+            salesTarget: monthlySalesTarget,
+            avgDailySales: monthlyDays.length > 0 ? monthlySalesTarget / monthlyDays.length : 0,
+            productionValue: 0,
+            productionTarget: 0,
+            avgPricePerPiece: 0,
+            sellThroughTarget: 0,
+            retailLabor: 0,
+            processingLabor: 0,
+            piecesPerHour: 0,
+            avgDailyProduction: 0,
+          } : {},
+          loaded: true,
+        };
+      }
+
+      // Check if this is the "Dashboard" tab format (matrix layout)
+      // Row 0 = Store Name, Row 1 = Location ID, Row 2 = Start Date, etc.
+      const allRows = lines.map(line => parseCSVLine(line).map(v => v.trim().replace(/^"|"$/g, '')));
+      if (allRows.length > 5 && (allRows[0][0] || '').toLowerCase().includes('store')) {
+        const now = new Date();
+        const currentMonth = now.getMonth();
+        const currentYear = now.getFullYear();
+
+        let targetCol = -1;
+        if (allRows.length > 2) {
+          for (let c = 1; c < allRows[2].length; c++) {
+            const startDate = allRows[2][c];
+            if (startDate) {
+              const d = new Date(startDate);
+              if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+                targetCol = c;
+                break;
+              }
+            }
+          }
+          if (targetCol === -1 && allRows[2]) {
+            targetCol = allRows[2].length - 1;
+          }
+        }
+
+        if (targetCol > 0) {
+          const getVal = (rowIdx) => {
+            if (allRows[rowIdx] && allRows[rowIdx][targetCol]) {
+              return parseFloat(allRows[rowIdx][targetCol].replace(/[$,%]/g, '')) || 0;
+            }
+            return 0;
+          };
+
+          return {
+            daily: [],
+            monthly: {
+              salesTarget: getVal(4),
+              retailLabor: getVal(5),
+              productionValue: getVal(8),
+              processingLabor: getVal(9),
+              avgPricePerPiece: getVal(10),
+              sellThroughTarget: getVal(11),
+              productionTarget: getVal(12),
+              piecesPerHour: getVal(13),
+              avgDailySales: getVal(15),
+              avgDailyProduction: getVal(16),
+            },
+            loaded: true,
+          };
+        }
+      }
+
+      // Generic fallback: try to parse as key-value or simple table
+      const rows = parseCSV(text);
+      return { daily: [], monthly: {}, rawRows: rows, loaded: true };
+    };
+
+    // Save/load targets from localStorage
+    const saveTargets = (targets) => {
+      try {
+        localStorage.setItem('bridge_thrift_targets', JSON.stringify(targets));
+      } catch (e) {
+        console.warn('Could not save targets to localStorage:', e);
+      }
+    };
+
+    const loadSavedTargets = () => {
+      try {
+        const saved = localStorage.getItem('bridge_thrift_targets');
+        if (saved) return JSON.parse(saved);
+      } catch (e) {
+        console.warn('Could not load saved targets:', e);
+      }
+      return { daily: [], monthly: {}, loaded: false };
+    };
+
+    // ============================================================================
+    // TARGET DISPLAY COMPONENTS
+    // ============================================================================
+
+    const ProgressBar = ({ actual, target, label, format = 'currency' }) => {
+      const pct = target > 0 ? Math.min((actual / target) * 100, 150) : 0;
+      const displayPct = target > 0 ? ((actual / target) * 100).toFixed(1) : '0.0';
+      const barColor = pct >= 100 ? '#4CAF50' : pct >= 75 ? '#FF9800' : '#f44336';
+      const formatVal = (v) => format === 'currency' ? formatCurrency(v) : format === 'percent' ? v.toFixed(1) + '%' : v.toLocaleString();
+
+      return (
+        <div className="mb-3">
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-gray-600">{label}</span>
+            <span className="font-medium">{formatVal(actual)} / {formatVal(target)} ({displayPct}%)</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div className="h-3 rounded-full transition-all duration-500" style={{ width: Math.min(pct, 100) + '%', backgroundColor: barColor }} />
+          </div>
+        </div>
+      );
+    };
+
+    const TargetsSummaryCard = ({ targets, totalSales, totalUnits, avgPrice }) => {
+      const monthly = targets.monthly || {};
+      if (!targets.loaded || !monthly.salesTarget) {
+        return (
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h3 className="font-semibold mb-2 text-gray-900">Monthly Targets</h3>
+            <p className="text-sm text-gray-500">
+              No targets uploaded yet. Go to Administration &gt; Targets to upload a CSV from your Google Sheet.
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="bg-white p-6 rounded-lg border border-gray-200">
+          <h3 className="font-semibold mb-4 text-gray-900">Monthly Targets vs Actuals</h3>
+          <ProgressBar actual={totalSales} target={monthly.salesTarget} label="Sales" />
+          {monthly.productionValue > 0 && <ProgressBar actual={totalSales * 1.3} target={monthly.productionValue} label="Production Value" />}
+          {monthly.productionTarget > 0 && <ProgressBar actual={totalUnits} target={monthly.productionTarget} label="Units Produced" format="number" />}
+          {monthly.avgPricePerPiece > 0 && <ProgressBar actual={avgPrice} target={monthly.avgPricePerPiece} label="Avg Price/Piece" />}
+          {monthly.sellThroughTarget > 0 && <ProgressBar actual={0} target={monthly.sellThroughTarget} label="Sell-Through %" format="percent" />}
+        </div>
+      );
+    };
+
+    // ============================================================================
+    // TARGETS MANAGEMENT PAGE
+    // ============================================================================
+
+    const TargetsManagement = ({ targets, onTargetsUpdate }) => {
+      const [uploading, setUploading] = useState(false);
+      const [uploadStatus, setUploadStatus] = useState(null);
+      const [dragOver, setDragOver] = useState(false);
+
+      const handleFile = (file) => {
+        if (!file) return;
+        setUploading(true);
+        setUploadStatus(null);
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const text = e.target.result;
+            const parsed = parseTargetsCSV(text);
+            parsed.uploadedAt = new Date().toISOString();
+            parsed.fileName = file.name;
+            saveTargets(parsed);
+            onTargetsUpdate(parsed);
+            setUploadStatus({ type: 'success', message: `Loaded ${parsed.daily.length} daily targets from "${file.name}". ${parsed.monthly.salesTarget ? 'Monthly sales target: ' + formatCurrency(parsed.monthly.salesTarget) : ''}` });
+          } catch (err) {
+            setUploadStatus({ type: 'error', message: 'Failed to parse file: ' + err.message });
+          }
+          setUploading(false);
+        };
+        reader.onerror = () => {
+          setUploadStatus({ type: 'error', message: 'Failed to read file.' });
+          setUploading(false);
+        };
+        reader.readAsText(file);
+      };
+
+      const handleDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files[0];
+        if (file && (file.name.endsWith('.csv') || file.type === 'text/csv')) {
+          handleFile(file);
+        } else {
+          setUploadStatus({ type: 'error', message: 'Please upload a CSV file.' });
+        }
+      };
+
+      const handleClear = () => {
+        localStorage.removeItem('bridge_thrift_targets');
+        onTargetsUpdate({ daily: [], monthly: {}, loaded: false });
+        setUploadStatus({ type: 'success', message: 'Targets cleared.' });
+      };
+
+      return (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Sales Targets</h2>
+            {targets.loaded && targets.monthly.salesTarget && (
+              <button onClick={handleClear} className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50">
+                Clear Targets
+              </button>
+            )}
+          </div>
+
+          {/* Upload Section */}
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <h3 className="font-semibold mb-2 text-gray-900">Upload Targets</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Export your Google Sheet as CSV and upload it here. The website will read the targets and update the dashboard automatically.
+            </p>
+            <div className="flex items-center gap-3 mb-4 text-sm text-gray-500">
+              <span className="font-medium">How to export:</span>
+              <span>Open Google Sheet → File → Download → Comma-separated values (.csv)</span>
+            </div>
+            <div
+              onDrop={handleDrop}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              className={`border-2 border-dashed rounded-lg p-8 text-center transition ${dragOver ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-green-400'}`}
+            >
+              <Icons.Download size={32} className="mx-auto mb-3 text-gray-400" />
+              <p className="text-gray-600 mb-2">Drag and drop a CSV file here, or</p>
+              <label className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm cursor-pointer hover:bg-green-700">
+                <span>Choose File</span>
+                <input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => handleFile(e.target.files[0])}
+                />
+              </label>
+              {uploading && <p className="mt-3 text-sm text-gray-500">Processing...</p>}
+            </div>
+
+            {uploadStatus && (
+              <div className={`mt-4 p-3 rounded-lg text-sm ${uploadStatus.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+                {uploadStatus.message}
+              </div>
+            )}
+          </div>
+
+          {/* Connection Status */}
+          <div className="bg-white p-6 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className={`w-3 h-3 rounded-full ${targets.loaded && targets.monthly.salesTarget ? 'bg-green-500' : 'bg-gray-400'}`} />
+              <p className="text-sm font-medium text-gray-700">
+                {targets.loaded && targets.monthly.salesTarget ? 'Targets loaded' + (targets.fileName ? ' from ' + targets.fileName : '') : 'No targets uploaded yet'}
+              </p>
+              {targets.uploadedAt && (
+                <span className="text-xs text-gray-400 ml-auto">
+                  Last updated: {new Date(targets.uploadedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+            <a href="https://docs.google.com/spreadsheets/d/1wyZAKR10YNNlvW7-bcuwq8PC_YXMMGFhlqCMCu6Idwo/edit" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
+              Open Google Sheet
+            </a>
+          </div>
+
+          {/* Current Month Summary */}
+          {targets.loaded && targets.monthly.salesTarget && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">Current Month Targets</h3>
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
+                {targets.monthly.salesTarget > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Sales Target</span><span className="font-medium">{formatCurrency(targets.monthly.salesTarget)}</span></div>}
+                {targets.monthly.productionValue > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Production Value</span><span className="font-medium">{formatCurrency(targets.monthly.productionValue)}</span></div>}
+                {targets.monthly.productionTarget > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Production Target (units)</span><span className="font-medium">{targets.monthly.productionTarget?.toLocaleString()}</span></div>}
+                {targets.monthly.avgPricePerPiece > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Avg Price/Piece</span><span className="font-medium">{formatCurrency(targets.monthly.avgPricePerPiece)}</span></div>}
+                {targets.monthly.sellThroughTarget > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Sell-Through Target</span><span className="font-medium">{targets.monthly.sellThroughTarget}%</span></div>}
+                {targets.monthly.retailLabor > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Retail Labor (hrs)</span><span className="font-medium">{targets.monthly.retailLabor}</span></div>}
+                {targets.monthly.processingLabor > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Processing Labor (hrs)</span><span className="font-medium">{targets.monthly.processingLabor}</span></div>}
+                {targets.monthly.piecesPerHour > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Pieces/Hour</span><span className="font-medium">{targets.monthly.piecesPerHour}</span></div>}
+                {targets.monthly.avgDailySales > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Avg Daily Sales</span><span className="font-medium">{formatCurrency(targets.monthly.avgDailySales)}</span></div>}
+                {targets.monthly.avgDailyProduction > 0 && <div className="flex justify-between py-2 border-b"><span className="text-gray-600">Avg Daily Production</span><span className="font-medium">{targets.monthly.avgDailyProduction?.toLocaleString()}</span></div>}
+              </div>
+            </div>
+          )}
+
+          {/* Daily Targets Table */}
+          {targets.daily && targets.daily.length > 0 && (
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="font-semibold mb-4">Daily Targets ({targets.daily.length} entries)</h3>
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b sticky top-0">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-semibold">Type</th>
+                      <th className="text-left px-4 py-3 font-semibold">Date</th>
+                      <th className="text-left px-4 py-3 font-semibold">Location</th>
+                      <th className="text-right px-4 py-3 font-semibold">Sales Target</th>
+                      <th className="text-right px-4 py-3 font-semibold">Amount 2</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {targets.daily.map((t, i) => (
+                      <tr key={i} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-2 capitalize">{t.type}</td>
+                        <td className="px-4 py-2">{t.date}</td>
+                        <td className="px-4 py-2">{t.locationCode}</td>
+                        <td className="text-right px-4 py-2">{formatCurrency(t.amount1)}</td>
+                        <td className="text-right px-4 py-2">{t.amount2}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      );
     };
 
     // ============================================================================
@@ -350,7 +737,7 @@
     };
 
     // Dashboard - Overview
-    const DashboardOverview = ({ data, selectedLocation, locations }) => {
+    const DashboardOverview = ({ data, selectedLocation, locations, targets = { daily: [], monthly: {}, loaded: false } }) => {
       const [dateRange, setDateRange] = useState({ from: '', to: '' });
       const [period, setPeriod] = useState('daily');
 
@@ -407,37 +794,55 @@
             <div className="bg-white p-6 rounded-lg border border-gray-200">
               <p className="text-xs font-medium text-gray-600 mb-1">Sales</p>
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalSales)}</p>
-              <p className="text-xs text-green-600 mt-1">+5.2% vs last month</p>
+              {targets.loaded && targets.monthly.salesTarget ? (
+                <p className="text-xs text-gray-500 mt-1">Target: {formatCurrency(targets.monthly.salesTarget)}</p>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">No target set</p>
+              )}
             </div>
             <div className="bg-white p-6 rounded-lg border border-gray-200">
               <p className="text-xs font-medium text-gray-600 mb-1">Transactions</p>
               <p className="text-2xl font-bold text-gray-900">{totalTransactions}</p>
-              <p className="text-xs text-green-600 mt-1">+3.1% vs last month</p>
+              <p className="text-xs text-gray-400 mt-1">This period</p>
             </div>
             <div className="bg-white p-6 rounded-lg border border-gray-200">
               <p className="text-xs font-medium text-gray-600 mb-1">Production Value</p>
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalSales * 1.3)}</p>
-              <p className="text-xs text-green-600 mt-1">Estimated value</p>
+              {targets.loaded && targets.monthly.productionValue ? (
+                <p className="text-xs text-gray-500 mt-1">Target: {formatCurrency(targets.monthly.productionValue)}</p>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">No target set</p>
+              )}
             </div>
             <div className="bg-white p-6 rounded-lg border border-gray-200">
               <p className="text-xs font-medium text-gray-600 mb-1">Avg Price/Piece</p>
               <p className="text-2xl font-bold text-gray-900">{formatCurrency(avgPrice)}</p>
-              <p className="text-xs text-gray-600 mt-1">Per item sold</p>
+              {targets.loaded && targets.monthly.avgPricePerPiece ? (
+                <p className="text-xs text-gray-500 mt-1">Target: {formatCurrency(targets.monthly.avgPricePerPiece)}</p>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">No target set</p>
+              )}
             </div>
             <div className="bg-white p-6 rounded-lg border border-gray-200">
-              <p className="text-xs font-medium text-gray-600 mb-1">Units Processed</p>
+              <p className="text-xs font-medium text-gray-600 mb-1">Units Produced</p>
               <p className="text-2xl font-bold text-gray-900">{totalUnits}</p>
-              <p className="text-xs text-green-600 mt-1">Last 30 days</p>
+              {targets.loaded && targets.monthly.productionTarget ? (
+                <p className="text-xs text-gray-500 mt-1">Target: {targets.monthly.productionTarget.toLocaleString()}</p>
+              ) : (
+                <p className="text-xs text-gray-400 mt-1">No target set</p>
+              )}
             </div>
           </div>
 
           <div className="grid grid-cols-5 gap-4 bg-white p-6 rounded-lg border border-gray-200">
-            <Gauge value={Math.min(totalSales / 100, 100)} max={100} label="Sales" />
-            <Gauge value={Math.min(totalSales / 100, 100)} max={100} label="Production Value" />
-            <Gauge value={Math.min(totalUnits / 10, 100)} max={100} label="Units Produced" />
-            <Gauge value={Math.min(avgPrice * 10, 100)} max={100} label="Avg Price" />
+            <Gauge value={targets.monthly.salesTarget ? Math.round((totalSales / targets.monthly.salesTarget) * 100) : Math.min(totalSales / 100, 100)} max={100} label="Sales" />
+            <Gauge value={targets.monthly.productionValue ? Math.round(((totalSales * 1.3) / targets.monthly.productionValue) * 100) : Math.min(totalSales / 100, 100)} max={100} label="Production Value" />
+            <Gauge value={targets.monthly.productionTarget ? Math.round((totalUnits / targets.monthly.productionTarget) * 100) : Math.min(totalUnits / 10, 100)} max={100} label="Units Produced" />
+            <Gauge value={targets.monthly.avgPricePerPiece ? Math.round((avgPrice / targets.monthly.avgPricePerPiece) * 100) : Math.min(avgPrice * 10, 100)} max={100} label="Avg Price" />
             <Gauge value={Math.floor((totalUnits / (filteredRetail.length * 8)) * 100 || 0)} max={100} label="Efficiency" />
           </div>
+
+          <TargetsSummaryCard targets={targets} totalSales={totalSales} totalUnits={totalUnits} avgPrice={avgPrice} />
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-white p-6 rounded-lg border border-gray-200">
@@ -1277,13 +1682,14 @@
       const [data, setData] = useState(initializeData());
       const [selectedLocation, setSelectedLocation] = useState(1);
       const [activeSection, setActiveSection] = useState('overview');
+      const [targets, setTargets] = useState(() => loadSavedTargets());
 
       const renderContent = () => {
         const location = LOCATIONS.find(l => l.id === selectedLocation);
 
         switch (activeSection) {
           case 'overview':
-            return <DashboardOverview data={data} selectedLocation={selectedLocation} locations={LOCATIONS} />;
+            return <DashboardOverview data={data} selectedLocation={selectedLocation} locations={LOCATIONS} targets={targets} />;
           case 'donations':
             return <DonationsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
           case 'truck_stops':
@@ -1311,7 +1717,7 @@
           case 'admin-payment':
             return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Payment Methods management</p></div>;
           case 'admin-targets':
-            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Sales Targets management</p></div>;
+            return <TargetsManagement targets={targets} onTargetsUpdate={setTargets} />;
           case 'people-donors':
             return <ListModule title="Donors" data={data.donors} columns={['firstName', 'lastName', 'email', 'phone']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, donors: data.donors.filter((_, i) => i !== idx) })} />;
           case 'people-partners':
@@ -1349,7 +1755,7 @@
           case 'dashboard-wholesale':
             return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Wholesale Dashboard</p></div>;
           default:
-            return <DashboardOverview data={data} selectedLocation={selectedLocation} locations={LOCATIONS} />;
+            return <DashboardOverview data={data} selectedLocation={selectedLocation} locations={LOCATIONS} targets={targets} />;
         }
       };
 
