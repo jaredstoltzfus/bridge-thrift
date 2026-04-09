@@ -1,11 +1,9 @@
-h<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bridge Thrift</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -1495,9 +1493,17 @@ h<!DOCTYPE html>
     root.render(<BridgeThriftApp />);
   </script>
   <script type="module">
-    // Load Recharts via ESM (UMD build is broken for browser globals)
-    const Recharts = await import('https://esm.sh/recharts@2.12.7?bundle');
+    // Load React, ReactDOM, and Recharts all from esm.sh
+    // so they share the same React instance (avoids dual-React hooks error)
+    const ReactMod = await import('https://esm.sh/react@18.2.0');
+    const ReactDOMMod = await import('https://esm.sh/react-dom@18.2.0');
+    const ReactDOMClient = await import('https://esm.sh/react-dom@18.2.0/client');
+    const Recharts = await import('https://esm.sh/recharts@2.12.7?deps=react@18.2.0,react-dom@18.2.0');
+
+    window.React = ReactMod.default;
+    window.ReactDOM = Object.assign({}, ReactDOMMod, ReactDOMClient);
     window.RechartsLib = Recharts;
+
     // Manually transform and execute the JSX app code
     const jsx = document.getElementById('app-code').textContent;
     const transformed = Babel.transform(jsx, { presets: ['env', 'react'] }).code;
