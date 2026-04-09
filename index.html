@@ -7,7 +7,6 @@ h<!DOCTYPE html>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     html, body, #root {
@@ -21,9 +20,9 @@ h<!DOCTYPE html>
 <body>
   <div id="root"></div>
 
-  <script type="text/babel">
+  <script type="text/babel-app" id="app-code">
     const { useState, useCallback, useMemo } = React;
-    const { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window;
+    const { BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = window.RechartsLib;
 
     // SVG Icon Components
     const Icons = {
@@ -1494,6 +1493,17 @@ h<!DOCTYPE html>
     // Render the app
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<BridgeThriftApp />);
+  </script>
+  <script type="module">
+    // Load Recharts via ESM (UMD build is broken for browser globals)
+    const Recharts = await import('https://esm.sh/recharts@2.12.7?bundle');
+    window.RechartsLib = Recharts;
+    // Manually transform and execute the JSX app code
+    const jsx = document.getElementById('app-code').textContent;
+    const transformed = Babel.transform(jsx, { presets: ['env', 'react'] }).code;
+    const script = document.createElement('script');
+    script.textContent = transformed;
+    document.body.appendChild(script);
   </script>
 </body>
 </html>
