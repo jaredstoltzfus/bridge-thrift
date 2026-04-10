@@ -538,9 +538,9 @@
           <div className="relative w-32 h-16">
             <svg viewBox="0 0 200 100" className="w-full h-full">
               <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="#e0e0e0" strokeWidth="8" fill="none" />
-              <path d="M 20 100 A 80 80 0 0 1 120 20" stroke="#4CAF50" strokeWidth="8" fill="none" />
-              <path d="M 120 20 A 80 80 0 0 1 160 40" stroke="#FF9800" strokeWidth="8" fill="none" />
-              <path d="M 160 40 A 80 80 0 0 1 180 100" stroke="#f44336" strokeWidth="8" fill="none" />
+              <path d="M 20 100 A 80 80 0 0 1 40 40" stroke="#f44336" strokeWidth="8" fill="none" />
+              <path d="M 40 40 A 80 80 0 0 1 80 20" stroke="#FF9800" strokeWidth="8" fill="none" />
+              <path d="M 80 20 A 80 80 0 0 1 180 100" stroke="#4CAF50" strokeWidth="8" fill="none" />
               <line
                 x1="100" y1="100" x2={100 + 70 * Math.cos((rotation * Math.PI) / 180)}
                 y1={100 + 70 * Math.sin((rotation * Math.PI) / 180)}
@@ -657,10 +657,6 @@
             )}
           </div>
 
-          <NavItem icon={Icons.Gift} label="Donations" onClick={() => onSectionChange('donations')} active={activeSection === 'donations'} />
-          <NavItem icon={Icons.Truck} label="Truck Stops" onClick={() => onSectionChange('truck_stops')} active={activeSection === 'truck_stops'} />
-          <NavItem icon={Icons.Calendar} label="Events" onClick={() => onSectionChange('events')} active={activeSection === 'events'} />
-
           <div>
             <NavItem
               icon={Icons.BarChart3}
@@ -673,10 +669,6 @@
               <>
                 <SubNavItem label="Processing" onClick={() => onSectionChange('metrics-processing')} active={activeSection === 'metrics-processing'} />
                 <SubNavItem label="Retail" onClick={() => onSectionChange('metrics-retail')} active={activeSection === 'metrics-retail'} />
-                <SubNavItem label="Wholesale" onClick={() => onSectionChange('metrics-wholesale')} active={activeSection === 'metrics-wholesale'} />
-                <SubNavItem label="Benevolence" onClick={() => onSectionChange('metrics-benevolence')} active={activeSection === 'metrics-benevolence'} />
-                <SubNavItem label="Call Center" onClick={() => onSectionChange('metrics-call-center')} active={activeSection === 'metrics-call-center'} />
-                <SubNavItem label="Pickups" onClick={() => onSectionChange('metrics-pickups')} active={activeSection === 'metrics-pickups'} />
               </>
             )}
           </div>
@@ -694,7 +686,6 @@
                 <SubNavItem label="Categories" onClick={() => onSectionChange('admin-categories')} active={activeSection === 'admin-categories'} />
                 <SubNavItem label="Locations" onClick={() => onSectionChange('admin-locations')} active={activeSection === 'admin-locations'} />
                 <SubNavItem label="Users" onClick={() => onSectionChange('admin-users')} active={activeSection === 'admin-users'} />
-                <SubNavItem label="Payment Methods" onClick={() => onSectionChange('admin-payment')} active={activeSection === 'admin-payment'} />
                 <SubNavItem label="Targets" onClick={() => onSectionChange('admin-targets')} active={activeSection === 'admin-targets'} />
               </>
             )}
@@ -713,22 +704,6 @@
                 <SubNavItem label="Donors" onClick={() => onSectionChange('people-donors')} active={activeSection === 'people-donors'} />
                 <SubNavItem label="Partners" onClick={() => onSectionChange('people-partners')} active={activeSection === 'people-partners'} />
                 <SubNavItem label="Customers" onClick={() => onSectionChange('people-customers')} active={activeSection === 'people-customers'} />
-              </>
-            )}
-          </div>
-
-          <div>
-            <NavItem
-              icon={Icons.ShoppingCart}
-              label="Point of Sale"
-              hasSubmenu
-              onToggle={() => toggleExpand('pos')}
-              active={activeSection?.startsWith('pos-')}
-            />
-            {expanded.pos && (
-              <>
-                <SubNavItem label="Drawers" onClick={() => onSectionChange('pos-drawers')} active={activeSection === 'pos-drawers'} />
-                <SubNavItem label="Transactions" onClick={() => onSectionChange('pos-transactions')} active={activeSection === 'pos-transactions'} />
               </>
             )}
           </div>
@@ -1746,32 +1721,16 @@
         switch (activeSection) {
           case 'overview':
             return <DashboardOverview data={data} selectedLocation={selectedLocation} locations={LOCATIONS} targets={targets} />;
-          case 'donations':
-            return <DonationsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
-          case 'truck_stops':
-            return <TruckStopsModule data={data} selectedLocation={selectedLocation} onDataChange={setData} />;
-          case 'events':
-            return <ListModule title="Events" data={data.events} columns={['date', 'name', 'description']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, events: data.events.filter((_, i) => i !== idx) })} />;
           case 'metrics-processing':
             return <ProcessingMetricsModule data={data} selectedLocation={selectedLocation} onDataChange={setData} />;
           case 'metrics-retail':
             return <RetailMetricsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
-          case 'metrics-wholesale':
-            return <ListModule title="Wholesale Summaries" data={data.wholesaleSummaries || []} columns={['date', 'location']} onEdit={() => {}} onDelete={() => {}} />;
-          case 'metrics-benevolence':
-            return <ListModule title="Benevolence Gifts" data={data.benevolenceGifts} columns={['date', 'recipient', 'amount', 'description']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, benevolenceGifts: data.benevolenceGifts.filter((_, i) => i !== idx) })} />;
-          case 'metrics-call-center':
-            return <ListModule title="Call Center Summaries" data={data.callCenterSummaries || []} columns={['date', 'location', 'calls']} onEdit={() => {}} onDelete={() => {}} />;
-          case 'metrics-pickups':
-            return <PickupsModule data={data} selectedLocation={selectedLocation} onDataChange={setData} />;
           case 'admin-categories':
             return <CategoriesModule data={data} onDataChange={setData} />;
           case 'admin-locations':
             return <LocationsModule data={data} onDataChange={setData} />;
           case 'admin-users':
             return <ListModule title="Users" data={data.users} columns={['name', 'email', 'role']} onEdit={() => {}} onDelete={(idx) => setData({ ...data, users: data.users.filter((_, i) => i !== idx) })} />;
-          case 'admin-payment':
-            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Payment Methods management</p></div>;
           case 'admin-targets':
             return <TargetsManagement targets={targets} onTargetsUpdate={setTargets} />;
           case 'people-donors':
@@ -1798,10 +1757,6 @@
             );
           case 'people-customers':
             return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Customers management</p></div>;
-          case 'pos-drawers':
-            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Cash Drawer management</p></div>;
-          case 'pos-transactions':
-            return <div className="bg-white p-6 rounded-lg border border-gray-200"><p className="text-gray-600">Point of Sale Transactions</p></div>;
           case 'dashboard-donations':
             return <DonationsModule data={data} selectedLocation={selectedLocation} locations={LOCATIONS} onDataChange={setData} />;
           case 'dashboard-processing':
